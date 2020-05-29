@@ -1,9 +1,6 @@
 using System;
 using System.Management.Automation;
-using TTRider.PowerShellAsync;
-using Npgsql;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 
 namespace PoshPG
 {
@@ -24,7 +21,6 @@ namespace PoshPG
             {
                 WriteObject(e);
             }
-
         }
     }
 }

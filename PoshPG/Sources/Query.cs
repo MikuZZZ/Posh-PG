@@ -1,13 +1,10 @@
 using System;
-using System.Management.Automation;
-using Npgsql;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Data;
-using System.Linq;
-using System.Collections.ObjectModel;
-using System.Management.Automation.Language;
 using System.Collections;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Management.Automation;
+using System.Threading.Tasks;
 
 namespace PoshPG
 {
@@ -15,21 +12,20 @@ namespace PoshPG
     [OutputType(typeof(string))]
     public class InvokePgQuery : PGCmdlet, IDynamicParameters
     {
-        [Parameter]
-        public string Query;
+        [Parameter] public string Query;
 
-        [Parameter]
-        public Hashtable QueryParameters;
+        [Parameter] public Hashtable QueryParameters;
 
-        new public object GetDynamicParameters()
+        public new object GetDynamicParameters()
         {
             var dp = base.GetDynamicParameters() as RuntimeDefinedParameterDictionary;
 
             dp.Add("Name", new RuntimeDefinedParameter(
                 "Name",
-                typeof(String),
-                new Collection<Attribute>() {
-                    new ParameterAttribute() { Mandatory = false, HelpMessage = "Saved Query Name" },
+                typeof(string),
+                new Collection<Attribute>
+                {
+                    new ParameterAttribute {Mandatory = false, HelpMessage = "Saved Query Name"},
                     new ValidateSetAttribute(SavedQueries.Select(s => s.Key).ToArray())
                 }
             ));
@@ -46,22 +42,16 @@ namespace PoshPG
                 // WriteObject(DynamicParameters.Select(dp => new { Name = dp.Key, Value = dp.Value.Value }));
                 var query = Query;
                 if (DynamicParameters["Name"] != null)
-                {
                     query = SavedQueries[DynamicParameters["Name"].Value as string].Query;
-                }
 
                 var p = SavedQueries[DynamicParameters["Name"].Value as string]
                     .GetQueryParameters()
-                    .Select(p => new { Key = p, Value = null as string })
+                    .Select(p => new {Key = p, Value = null as string})
                     .ToDictionary(pair => pair.Key, pair => pair.Value);
 
                 if (QueryParameters != null)
-                {
                     foreach (DictionaryEntry inputParams in QueryParameters)
-                    {
                         p[inputParams.Key.ToString()] = inputParams.Value.ToString();
-                    }
-                }
 
                 // WriteObject(p);
                 var table = await new PgQuery(query).Invoke(CurrentConnection, p);
@@ -78,20 +68,15 @@ namespace PoshPG
     [OutputType(typeof(string))]
     public class NewPgQuery : PGCmdlet
     {
-        [Parameter(Mandatory = true)]
-        public string Query { get; set; }
+        [Parameter(Mandatory = true)] public string Query { get; set; }
 
 
-        [Parameter(Mandatory = true)]
-        public string Name { get; set; }
+        [Parameter(Mandatory = true)] public string Name { get; set; }
 
         private void AddToQueryCollection(string name, PgQuery query)
         {
             var savedQuery = SavedQueries;
-            if (savedQuery == null)
-            {
-                savedQuery = new Dictionary<string, PgQuery>();
-            }
+            if (savedQuery == null) savedQuery = new Dictionary<string, PgQuery>();
 
             savedQuery.Add(name, query);
             SavedQueries = savedQuery;
@@ -101,11 +86,8 @@ namespace PoshPG
         {
             AddToQueryCollection(Name, new PgQuery(Query));
 
-            var res = SavedQueries.Select(s => new { Name = s.Key, Query = s.Value.Query });
-            if (!Quiet)
-            {
-                WriteObject(res);
-            }
+            var res = SavedQueries.Select(s => new {Name = s.Key, s.Value.Query});
+            if (!Quiet) WriteObject(res);
         }
     }
 
@@ -115,15 +97,16 @@ namespace PoshPG
     {
         public string Name { get; set; }
 
-        new public object GetDynamicParameters()
+        public new object GetDynamicParameters()
         {
             var runtimeDefinedParameterDictionary = base.GetDynamicParameters() as RuntimeDefinedParameterDictionary;
 
             runtimeDefinedParameterDictionary.Add("Name", new RuntimeDefinedParameter(
                 "Name",
-                typeof(String),
-                new Collection<Attribute>() {
-                    new ParameterAttribute() { Mandatory = false, HelpMessage = "Saved Query Name" },
+                typeof(string),
+                new Collection<Attribute>
+                {
+                    new ParameterAttribute {Mandatory = false, HelpMessage = "Saved Query Name"},
                     new ValidateSetAttribute(SavedQueries.Select(s => s.Key).ToArray())
                 }
             ));
@@ -134,12 +117,10 @@ namespace PoshPG
         protected override async Task ProcessRecordAsync()
         {
             var res = SavedQueries
-                .Where(s => DynamicParameters["Name"].Value == null || (string)DynamicParameters["Name"].Value == s.Key)
-                .Select(s => new { Name = s.Key, Query = s.Value.Query, Parameters = s.Value.GetQueryParameters() });
-            if (!Quiet)
-            {
-                WriteObject(res);
-            }
+                .Where(s => DynamicParameters["Name"].Value == null ||
+                            (string) DynamicParameters["Name"].Value == s.Key)
+                .Select(s => new {Name = s.Key, s.Value.Query, Parameters = s.Value.GetQueryParameters()});
+            if (!Quiet) WriteObject(res);
         }
     }
 }

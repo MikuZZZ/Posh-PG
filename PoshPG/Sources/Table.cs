@@ -1,9 +1,7 @@
 using System;
-using System.Management.Automation;
-using TTRider.PowerShellAsync;
-using Npgsql;
-using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Management.Automation;
+using System.Threading.Tasks;
 
 namespace PoshPG
 {
@@ -11,17 +9,17 @@ namespace PoshPG
     [OutputType(typeof(string))]
     public class GetPgTable : PGCmdlet
     {
-        [Parameter]
-        public string Schema = null;
+        [Parameter] public string Schema = null;
 
         protected override async Task ProcessRecordAsync()
         {
             try
             {
-                var query = "select * from information_schema.tables where (@p is null or table_schema = @p) and table_type = 'BASE TABLE'";
+                var query =
+                    "select * from information_schema.tables where (@p is null or table_schema = @p) and table_type = 'BASE TABLE'";
                 var parameters = new Dictionary<string, string>
                 {
-                    ["p"] = Schema,
+                    ["p"] = Schema
                 };
 
                 var table = await new PgQuery(query).Invoke(CurrentConnection, parameters);
@@ -31,7 +29,6 @@ namespace PoshPG
             {
                 WriteObject(e);
             }
-
         }
     }
 
@@ -39,11 +36,9 @@ namespace PoshPG
     [OutputType(typeof(string))]
     public class GetPgTableInfo : PGCmdlet
     {
-        [Parameter]
-        public string Schema = null;
+        [Parameter] public string Schema = null;
 
-        [Parameter(Mandatory = true)]
-        public string Table = null;
+        [Parameter(Mandatory = true)] public string Table = null;
 
         protected override async Task ProcessRecordAsync()
         {
@@ -58,7 +53,7 @@ namespace PoshPG
                 var table = await new PgQuery(query).Invoke(CurrentConnection, new Dictionary<string, string>
                 {
                     ["Table"] = Table,
-                    ["Schema"] = Schema,
+                    ["Schema"] = Schema
                 });
 
                 WriteObject(table);
@@ -67,7 +62,6 @@ namespace PoshPG
             {
                 WriteObject(e);
             }
-
         }
     }
 }

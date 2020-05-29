@@ -1,24 +1,22 @@
+using System.Data;
 using Xunit;
 using Xunit.Abstractions;
-using System.Data;
-using Facebook.Yoga;
-using Npgsql;
 
 namespace PoshPG.Tests
 {
     public class Test
     {
-        private readonly ITestOutputHelper output;
-
         public Test(ITestOutputHelper output)
         {
             this.output = output;
         }
 
+        private readonly ITestOutputHelper output;
+
         [Fact]
         public async void TestConnection()
         {
-            var connectCmdlet = new NewPgSession()
+            var connectCmdlet = new NewPgSession
             {
                 Endpoint = "psm-dev-1.cpq6vjqvr7b0.us-east-1.rds.amazonaws.com",
                 Username = "pinon",
@@ -35,7 +33,7 @@ namespace PoshPG.Tests
             output.WriteLine(table);
 
             output.WriteLine("\n");
-            output.WriteLine(table.ToString());
+            output.WriteLine(table);
         }
     }
 }

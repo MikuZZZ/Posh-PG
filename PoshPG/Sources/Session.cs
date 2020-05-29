@@ -1,13 +1,12 @@
 ﻿using System;
-using System.Management.Automation;
-using TTRider.PowerShellAsync;
-using Npgsql;
-using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Management.Automation;
 using System.Runtime.CompilerServices;
-using System.Linq;
+using System.Threading.Tasks;
+using Npgsql;
 
 [assembly: InternalsVisibleTo("PoshPG.Tests")]
+
 namespace PoshPG
 {
     [Cmdlet(VerbsCommon.New, "PgSession")]
@@ -15,26 +14,24 @@ namespace PoshPG
     public class NewPgSession : PGCmdlet
     {
         [Parameter(Mandatory = true)]
-        [ValidateNotNullOrEmpty()]
+        [ValidateNotNullOrEmpty]
         public string Endpoint { get; set; }
 
         [Parameter(Mandatory = true)]
-        [ValidateNotNullOrEmpty()]
+        [ValidateNotNullOrEmpty]
         public string Username { get; set; }
 
         [Parameter(Mandatory = true)]
-        [ValidateNotNullOrEmpty()]
+        [ValidateNotNullOrEmpty]
         public string Password { get; set; }
 
         [Parameter(Mandatory = true)]
-        [ValidateNotNullOrEmpty()]
+        [ValidateNotNullOrEmpty]
         public string Database { get; set; }
 
-        [Parameter(Mandatory = false)]
-        public string Alias { get; set; }
+        [Parameter(Mandatory = false)] public string Alias { get; set; }
 
-        [Parameter]
-        public string ConnectionString { get; set; }
+        [Parameter] public string ConnectionString { get; set; }
 
 
         private PgSession AddToSessionCollection(NpgsqlConnection connection)
@@ -52,7 +49,7 @@ namespace PoshPG
 
             session.SessionId = index;
             session.Connection = connection;
-            session.Alias = Alias;
+            session.SessionName = Alias;
             sessions.Add(session);
 
             SavedSessions = sessions;
@@ -75,10 +72,7 @@ namespace PoshPG
             {
                 var conn = await Connect();
                 var session = AddToSessionCollection(conn);
-                if (!Quiet)
-                {
-                    WriteObject(session);
-                }
+                if (!Quiet) WriteObject(session);
             }
             catch (Exception e)
             {
@@ -95,16 +89,12 @@ namespace PoshPG
         {
             try
             {
-                if (SavedSessions != null && SavedSessions.Count != 0)
-                {
-                    WriteObject(SavedSessions);
-                }
+                if (SavedSessions != null && SavedSessions.Count != 0) WriteObject(SavedSessions);
             }
             catch (Exception e)
             {
                 WriteObject(e);
             }
-
         }
     }
 
@@ -123,7 +113,6 @@ namespace PoshPG
             {
                 WriteObject(e);
             }
-
         }
     }
 
@@ -131,7 +120,6 @@ namespace PoshPG
     [OutputType(typeof(string))]
     public class GetPgDefaultSession : PGCmdlet
     {
-
         protected override async Task ProcessRecordAsync()
         {
             try
@@ -142,7 +130,6 @@ namespace PoshPG
             {
                 WriteObject(e);
             }
-
         }
     }
 }

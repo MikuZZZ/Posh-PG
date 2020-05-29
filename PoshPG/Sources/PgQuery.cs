@@ -10,19 +10,20 @@ namespace PoshPG
     public class PgQuery
     {
         public string Query;
-        public PgTableFormater Formatter { set; get; } = new PgTableDefaultFormater();
 
         public PgQuery(string query)
         {
-            this.Query = query;
+            Query = query;
         }
+
+        public PgTableFormater Formatter { set; get; } = new PgTableDefaultFormater();
 
         public string[] GetQueryParameters()
         {
-            Regex rx = new Regex(@"\@([a-zA-z0-9_]+)",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+            var rx = new Regex(@"\@([a-zA-z0-9_]+)",
+                RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-            MatchCollection matches = rx.Matches(Query);
+            var matches = rx.Matches(Query);
 
             return matches.Select(m => m.Value.Substring(1)).Distinct().ToArray();
         }
