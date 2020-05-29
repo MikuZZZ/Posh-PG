@@ -1,14 +1,12 @@
 using System;
-using System.Data;
 using Npgsql;
 
 namespace PoshPG
 {
-    // Object for SSH Sessions
     public class PgSession
     {
         public Int32 SessionId;
-        public string Alias;
+        public string SessionName;
         public NpgsqlConnection Connection;
 
         public string Host

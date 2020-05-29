@@ -2,6 +2,7 @@ using Xunit;
 using Xunit.Abstractions;
 using System.Data;
 using Facebook.Yoga;
+using Npgsql;
 
 namespace PoshPG.Tests
 {
@@ -17,7 +18,7 @@ namespace PoshPG.Tests
         [Fact]
         public async void TestConnection()
         {
-            var connectCmdlet = new NewPgConnection()
+            var connectCmdlet = new NewPgSession()
             {
                 Endpoint = "psm-dev-1.cpq6vjqvr7b0.us-east-1.rds.amazonaws.com",
                 Username = "pinon",
@@ -29,10 +30,9 @@ namespace PoshPG.Tests
 
             Assert.Equal(ConnectionState.Open, conn.State);
 
-            var queryCmdlet = new InvokePgQuery();
             var query = "select * from _user.user_info limit 1";
-
-            var table = await queryCmdlet.GetQueryResult(conn, query);
+            var table = await new PgQuery(query).Invoke(conn);
+            output.WriteLine(table);
 
             output.WriteLine("\n");
             output.WriteLine(table.ToString());

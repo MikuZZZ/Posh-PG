@@ -1,155 +1,145 @@
 using System;
 using System.Management.Automation;
-using TTRider.PowerShellAsync;
 using Npgsql;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using Facebook.Yoga;
+using System.Data;
 using System.Linq;
+using System.Collections.ObjectModel;
+using System.Management.Automation.Language;
+using System.Collections;
 
 namespace PoshPG
 {
     [Cmdlet(VerbsLifecycle.Invoke, "PgQuery")]
     [OutputType(typeof(string))]
-    public class InvokePgQuery : AsyncCmdlet
+    public class InvokePgQuery : PGCmdlet, IDynamicParameters
     {
+        [Parameter]
+        public string Query;
 
-        [Parameter(Mandatory = false)]
-        public string SessionId = "";
+        [Parameter]
+        public Hashtable QueryParameters;
 
-        [Parameter(Mandatory = false, HelpMessage = "Session Alias")]
-        public string Session = "";
-
-        [Parameter(Mandatory = true)]
-        public string Query { get; set; }
-
-        internal async Task<string> GetQueryResult(NpgsqlConnection connection, string query)
+        new public object GetDynamicParameters()
         {
-            var result = new List<Dictionary<string, object>>();
+            var dp = base.GetDynamicParameters() as RuntimeDefinedParameterDictionary;
 
-            await using var cmd = new NpgsqlCommand(query, connection);
-            await using var reader = await cmd.ExecuteReaderAsync();
-
-            var colNames = new string[reader.FieldCount];
-            var colTypes = new string[reader.FieldCount];
-            var flexChild = new YogaNode[reader.FieldCount];
-            var data = new List<string[]>();
-
-            var consoleWidth = 200;
-
-            try
-            {
-                consoleWidth = Console.WindowWidth;
-            }
-            catch { }
-
-            // Console.WriteLine($"Console Width: {consoleWidth}");
-
-            var flexRoot = new YogaNode()
-            {
-                Width = consoleWidth,
-                Height = 1,
-                Wrap = YogaWrap.NoWrap,
-                FlexDirection = YogaFlexDirection.Row,
-                JustifyContent = YogaJustify.SpaceBetween,
-            };
-
-            for (var i = 0; i < reader.FieldCount; i++)
-            {
-                colNames[i] = reader.GetName(i);
-                colTypes[i] = reader.GetDataTypeName(i);
-                flexChild[i] = new YogaNode()
-                {
-                    MarginLeft = 0,
-                    MarginRight = i == reader.FieldCount - 1 ? 0 : 1,
-                    FlexBasis = colNames[i].Length,
-                    FlexShrink = 0,
-                    FlexGrow = colTypes[i] == "boolean" ? 0 : 1,
-                    Height = 1,
-                };
-                flexRoot.Insert(i, flexChild[i]);
-            }
-
-            data.Add(colNames);
-            data.Add(colNames.Select(col => new String(Enumerable.Range(0, col.Length).SelectMany(x => "-").ToArray())).ToArray<string>());
-
-            flexRoot.CalculateLayout();
-
-            while (await reader.ReadAsync())
-            {
-                if (data.Count >= 100)
-                {
-                    await reader.CloseAsync();
-                    break;
+            dp.Add("Name", new RuntimeDefinedParameter(
+                "Name",
+                typeof(String),
+                new Collection<Attribute>() {
+                    new ParameterAttribute() { Mandatory = false, HelpMessage = "Saved Query Name" },
+                    new ValidateSetAttribute(SavedQueries.Select(s => s.Key).ToArray())
                 }
+            ));
 
-                var row = new string[reader.FieldCount];
-                for (var i = 0; i < reader.FieldCount; i++)
-                {
-                    row[i] = reader.GetValue(i).ToString();
-                    flexChild[i].Width = row[i].Length;
-                    if (row[i].Length > flexChild[i].LayoutWidth)
-                    {
-                        flexChild[i].FlexGrow = row[i].Length / flexChild[i].LayoutWidth * 2;
-                    }
-                }
-
-                data.Add(row);
-            }
-
-            flexRoot.CalculateLayout();
-
-            var tableStr = "";
-            foreach (var row in data)
-            {
-                var colStr = new string[row.Length];
-                for (var i = 0; i < row.Length; i++)
-                {
-                    var layoutWidth = (int)Math.Round(flexChild[i].LayoutWidth);
-                    colStr[i] = row[i]
-                        .Substring(0, Math.Min(layoutWidth, row[i].Length))
-                        .PadRight(layoutWidth, ' ');
-                }
-
-                var rowStr = String.Join(' ', colStr);
-                if (rowStr.Length > consoleWidth)
-                {
-                    rowStr = rowStr.Substring(0, consoleWidth - 2) + "..";
-                }
-
-                tableStr += rowStr + '\n';
-            }
-
-            return tableStr;
+            DynamicParameters = dp;
+            return dp;
         }
 
         protected override async Task ProcessRecordAsync()
         {
             try
             {
-                var currentSession = this.SessionState.PSVariable.GetValue("Global:PgSessions") as List<PgSession>;
-                var conn = null as NpgsqlConnection;
-                if (SessionId != "")
+                // WriteObject(SavedQueries[DynamicParameters["Name"].Value as string].GetQueryParameters());
+                // WriteObject(DynamicParameters.Select(dp => new { Name = dp.Key, Value = dp.Value.Value }));
+                var query = Query;
+                if (DynamicParameters["Name"] != null)
                 {
-                    conn = currentSession.Find(conn => conn.SessionId == Int32.Parse(SessionId)).Connection;
-                }
-                else if (Session != "")
-                {
-                    conn = currentSession.Find(conn => conn.Alias == Session).Connection;
-                }
-                else
-                {
-                    throw new System.Exception("Either Session or SessionId Required");
+                    query = SavedQueries[DynamicParameters["Name"].Value as string].Query;
                 }
 
-                var table = await GetQueryResult(conn, Query);
+                var p = SavedQueries[DynamicParameters["Name"].Value as string]
+                    .GetQueryParameters()
+                    .Select(p => new { Key = p, Value = null as string })
+                    .ToDictionary(pair => pair.Key, pair => pair.Value);
+
+                if (QueryParameters != null)
+                {
+                    foreach (DictionaryEntry inputParams in QueryParameters)
+                    {
+                        p[inputParams.Key.ToString()] = inputParams.Value.ToString();
+                    }
+                }
+
+                // WriteObject(p);
+                var table = await new PgQuery(query).Invoke(CurrentConnection, p);
                 WriteObject(table);
             }
             catch (Exception e)
             {
                 WriteObject(e);
             }
+        }
+    }
 
+    [Cmdlet(VerbsCommon.New, "PgQuery")]
+    [OutputType(typeof(string))]
+    public class NewPgQuery : PGCmdlet
+    {
+        [Parameter(Mandatory = true)]
+        public string Query { get; set; }
+
+
+        [Parameter(Mandatory = true)]
+        public string Name { get; set; }
+
+        private void AddToQueryCollection(string name, PgQuery query)
+        {
+            var savedQuery = SavedQueries;
+            if (savedQuery == null)
+            {
+                savedQuery = new Dictionary<string, PgQuery>();
+            }
+
+            savedQuery.Add(name, query);
+            SavedQueries = savedQuery;
+        }
+
+        protected override async Task ProcessRecordAsync()
+        {
+            AddToQueryCollection(Name, new PgQuery(Query));
+
+            var res = SavedQueries.Select(s => new { Name = s.Key, Query = s.Value.Query });
+            if (!Quiet)
+            {
+                WriteObject(res);
+            }
+        }
+    }
+
+    [Cmdlet(VerbsCommon.Get, "PgQuery")]
+    [OutputType(typeof(string))]
+    public class GetPgQuery : PGCmdlet, IDynamicParameters
+    {
+        public string Name { get; set; }
+
+        new public object GetDynamicParameters()
+        {
+            var runtimeDefinedParameterDictionary = base.GetDynamicParameters() as RuntimeDefinedParameterDictionary;
+
+            runtimeDefinedParameterDictionary.Add("Name", new RuntimeDefinedParameter(
+                "Name",
+                typeof(String),
+                new Collection<Attribute>() {
+                    new ParameterAttribute() { Mandatory = false, HelpMessage = "Saved Query Name" },
+                    new ValidateSetAttribute(SavedQueries.Select(s => s.Key).ToArray())
+                }
+            ));
+
+            return runtimeDefinedParameterDictionary;
+        }
+
+        protected override async Task ProcessRecordAsync()
+        {
+            var res = SavedQueries
+                .Where(s => DynamicParameters["Name"].Value == null || (string)DynamicParameters["Name"].Value == s.Key)
+                .Select(s => new { Name = s.Key, Query = s.Value.Query, Parameters = s.Value.GetQueryParameters() });
+            if (!Quiet)
+            {
+                WriteObject(res);
+            }
         }
     }
 }
