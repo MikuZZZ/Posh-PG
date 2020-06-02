@@ -5,8 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Npgsql;
 
-[assembly: InternalsVisibleTo("PoshPG.Tests")]
-
 namespace PoshPG
 {
     [Cmdlet(VerbsCommon.New, "PgSession")]
@@ -29,31 +27,18 @@ namespace PoshPG
         [ValidateNotNullOrEmpty]
         public string Database { get; set; }
 
-        [Parameter(Mandatory = false)] public string Alias { get; set; }
+        [Parameter(Mandatory = true)]
+        [ValidateNotNullOrEmpty]
+        public string Name { get; set; }
 
-        [Parameter] public string ConnectionString { get; set; }
-
-
-        private PgSession AddToSessionCollection(NpgsqlConnection connection)
+        private void AddToSessionCollection(NpgsqlConnection connection)
         {
-            var session = new PgSession();
-            var sessions = new List<PgSession>();
+            var savedSession = SavedSessions;
+            if (savedSession == null)
+                savedSession = new Dictionary<string, PgSession>();
 
-            var index = 0;
-
-            if (SavedSessions != null && SavedSessions.Count > 0)
-            {
-                sessions.AddRange(SavedSessions);
-                index = SavedSessions[SavedSessions.Count - 1].SessionId + 1;
-            }
-
-            session.SessionId = index;
-            session.Connection = connection;
-            session.SessionName = Alias;
-            sessions.Add(session);
-
-            SavedSessions = sessions;
-            return session;
+            savedSession.Add(Name, new PgSession(connection));
+            SavedSessions = savedSession;
         }
 
         internal async Task<NpgsqlConnection> Connect()
@@ -71,8 +56,13 @@ namespace PoshPG
             try
             {
                 var conn = await Connect();
-                var session = AddToSessionCollection(conn);
-                if (!Quiet) WriteObject(session);
+                AddToSessionCollection(conn);
+
+                if (!Quiet)
+                {
+                    WriteObject($"{Name} Created");
+                    WriteObject(SavedSessions[Name]);
+                }
             }
             catch (Exception e)
             {
@@ -87,14 +77,18 @@ namespace PoshPG
     {
         protected override async Task ProcessRecordAsync()
         {
-            try
+            await Task.Run(() =>
             {
-                if (SavedSessions != null && SavedSessions.Count != 0) WriteObject(SavedSessions);
-            }
-            catch (Exception e)
-            {
-                WriteObject(e);
-            }
+                try
+                {
+                    if (SavedSessions != null && SavedSessions.Count != 0)
+                        WriteObject(SavedSessions);
+                }
+                catch (Exception e)
+                {
+                    WriteObject(e);
+                }
+            });
         }
     }
 
@@ -104,15 +98,18 @@ namespace PoshPG
     {
         protected override async Task ProcessRecordAsync()
         {
-            try
+            await Task.Run(() =>
             {
-                DefaultSession = CurrentSession;
-                WriteObject(DefaultSession);
-            }
-            catch (Exception e)
-            {
-                WriteObject(e);
-            }
+                try
+                {
+                    DefaultSession = CurrentSession;
+                    WriteObject(DefaultSession);
+                }
+                catch (Exception e)
+                {
+                    WriteObject(e);
+                }
+            });
         }
     }
 
@@ -122,14 +119,17 @@ namespace PoshPG
     {
         protected override async Task ProcessRecordAsync()
         {
-            try
+            await Task.Run(() =>
             {
-                WriteObject(DefaultSession);
-            }
-            catch (Exception e)
-            {
-                WriteObject(e);
-            }
+                try
+                {
+                    WriteObject(DefaultSession);
+                }
+                catch (Exception e)
+                {
+                    WriteObject(e);
+                }
+            });
         }
     }
 }

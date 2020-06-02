@@ -5,8 +5,11 @@ namespace PoshPG
     public class PgSession
     {
         public NpgsqlConnection Connection;
-        public int SessionId;
-        public string SessionName;
+
+        public PgSession(NpgsqlConnection Connection)
+        {
+            this.Connection = Connection;
+        }
 
         public string Host => Connection.Host;
 

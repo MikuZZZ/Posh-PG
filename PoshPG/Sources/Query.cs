@@ -8,53 +8,117 @@ using System.Threading.Tasks;
 
 namespace PoshPG
 {
+    [Cmdlet(VerbsDiagnostic.Test, "ParameterSet")]
+    [OutputType(typeof(string))]
+    public class TestParameterSet : Cmdlet, IDynamicParameters
+    {
+
+        public class Generator : PGCmdlet, IValidateSetValuesGenerator
+        {
+            public string[] GetValidValues()
+            {
+                try
+                {
+                    return SavedSessions.Select(session => session.Key).ToArray();
+
+                }
+                catch
+                {
+                    return new string[] { "a", "c" };
+
+                }
+            }
+        }
+
+        [Parameter(Mandatory = true, ParameterSetName = "Set1")]
+        public string Text;
+
+
+        [Parameter(Mandatory = true, ParameterSetName = "Set2")]
+        public string File;
+
+        [Parameter(Mandatory = true, ParameterSetName = "Set4")]
+        [ValidateSet(typeof(Generator))]
+        public string Q;
+
+        public object GetDynamicParameters()
+        {
+            var runtimeDefinedParameterDictionary = new RuntimeDefinedParameterDictionary();
+
+            var queryParamAttr = new Collection<Attribute> { };
+            queryParamAttr.Add(new ParameterAttribute { Mandatory = true, ParameterSetName = "Set3" });
+
+            runtimeDefinedParameterDictionary.Add(
+                "Query",
+                new RuntimeDefinedParameter("Query", typeof(string), queryParamAttr)
+            );
+
+            return runtimeDefinedParameterDictionary;
+        }
+
+        protected override void ProcessRecord()
+        {
+            var obj = new Generator();
+            var result = obj.GetValidValues();
+            WriteObject(result);
+        }
+    }
+
     [Cmdlet(VerbsLifecycle.Invoke, "PgQuery")]
     [OutputType(typeof(string))]
     public class InvokePgQuery : PGCmdlet, IDynamicParameters
     {
-        [Parameter] public string Query;
+        [Parameter]
+        public Hashtable Parameters;
 
-        [Parameter] public Hashtable QueryParameters;
+        [Parameter(Mandatory = false)]
+        public string Text;
 
-        public new object GetDynamicParameters()
+
+        [Parameter(Mandatory = false)]
+        public string File;
+
+        public string Query => DynamicParameters["Query"].Value as string;
+
+        new public object GetDynamicParameters()
         {
-            var dp = base.GetDynamicParameters() as RuntimeDefinedParameterDictionary;
+            base.GetDynamicParameters();
 
-            dp.Add("Name", new RuntimeDefinedParameter(
-                "Name",
-                typeof(string),
-                new Collection<Attribute>
-                {
-                    new ParameterAttribute {Mandatory = false, HelpMessage = "Saved Query Name"},
-                    new ValidateSetAttribute(SavedQueries.Select(s => s.Key).ToArray())
-                }
-            ));
+            var queryParamAttr = new Collection<Attribute> { };
+            queryParamAttr.Add(new ParameterAttribute { Mandatory = false });
 
-            DynamicParameters = dp;
-            return dp;
+            if (SavedQueries != null)
+                queryParamAttr.Add(new ValidateSetAttribute(SavedQueries.Select(query => query.Key).ToArray()));
+
+            DynamicParameters.Add(
+                "Query",
+                new RuntimeDefinedParameter("Query", typeof(string), queryParamAttr)
+            );
+
+            return DynamicParameters;
         }
 
         protected override async Task ProcessRecordAsync()
         {
             try
             {
-                // WriteObject(SavedQueries[DynamicParameters["Name"].Value as string].GetQueryParameters());
-                // WriteObject(DynamicParameters.Select(dp => new { Name = dp.Key, Value = dp.Value.Value }));
-                var query = Query;
-                if (DynamicParameters["Name"] != null)
-                    query = SavedQueries[DynamicParameters["Name"].Value as string].Query;
+                var query = new PgQuery(Text);
+                if (Query != null)
+                    query = SavedQueries[Query];
+                else if (File != null)
+                    query = new PgQuery(File, System.Text.Encoding.UTF8);
 
-                var p = SavedQueries[DynamicParameters["Name"].Value as string]
+                var paramDict = query
                     .GetQueryParameters()
-                    .Select(p => new {Key = p, Value = null as string})
+                    .Select(p => new { Key = p, Value = null as string })
                     .ToDictionary(pair => pair.Key, pair => pair.Value);
 
-                if (QueryParameters != null)
-                    foreach (DictionaryEntry inputParams in QueryParameters)
-                        p[inputParams.Key.ToString()] = inputParams.Value.ToString();
+                if (Parameters != null)
+                    foreach (DictionaryEntry inputParams in Parameters)
+                        paramDict[inputParams.Key.ToString()] = inputParams.Value.ToString();
 
                 // WriteObject(p);
-                var table = await new PgQuery(query).Invoke(CurrentConnection, p);
+                var table = await query.Invoke(CurrentConnection, paramDict);
                 WriteObject(table);
             }
             catch (Exception e)
@@ -70,7 +134,6 @@ namespace PoshPG
     {
         [Parameter(Mandatory = true)] public string Query { get; set; }
 
-
         [Parameter(Mandatory = true)] public string Name { get; set; }
 
         private void AddToQueryCollection(string name, PgQuery query)
@@ -84,43 +147,34 @@ namespace PoshPG
 
         protected override async Task ProcessRecordAsync()
         {
-            AddToQueryCollection(Name, new PgQuery(Query));
+            await Task.Run(() =>
+            {
+                AddToQueryCollection(Name, new PgQuery(Query));
 
-            var res = SavedQueries.Select(s => new {Name = s.Key, s.Value.Query});
-            if (!Quiet) WriteObject(res);
+                var res = SavedQueries.Select(s => new { Name = s.Key, s.Value.Query });
+                if (!Quiet)
+                    WriteObject(res);
+            });
         }
     }
 
     [Cmdlet(VerbsCommon.Get, "PgQuery")]
     [OutputType(typeof(string))]
-    public class GetPgQuery : PGCmdlet, IDynamicParameters
+    public class GetPgQuery : PGCmdlet
     {
-        public string Name { get; set; }
-
-        public new object GetDynamicParameters()
-        {
-            var runtimeDefinedParameterDictionary = base.GetDynamicParameters() as RuntimeDefinedParameterDictionary;
-
-            runtimeDefinedParameterDictionary.Add("Name", new RuntimeDefinedParameter(
-                "Name",
-                typeof(string),
-                new Collection<Attribute>
-                {
-                    new ParameterAttribute {Mandatory = false, HelpMessage = "Saved Query Name"},
-                    new ValidateSetAttribute(SavedQueries.Select(s => s.Key).ToArray())
-                }
-            ));
-
-            return runtimeDefinedParameterDictionary;
-        }
+        [Parameter] public string Name { get; set; }
 
         protected override async Task ProcessRecordAsync()
         {
-            var res = SavedQueries
-                .Where(s => DynamicParameters["Name"].Value == null ||
-                            (string) DynamicParameters["Name"].Value == s.Key)
-                .Select(s => new {Name = s.Key, s.Value.Query, Parameters = s.Value.GetQueryParameters()});
-            if (!Quiet) WriteObject(res);
+            await Task.Run(() =>
+            {
+                var res = SavedQueries
+                    .Where(s => Name == null || Name == s.Key)
+                    .Select(s => new { Name = s.Key, s.Value.Query, Parameters = s.Value.GetQueryParameters() });
+
+                if (!Quiet)
+                    WriteObject(res);
+            });
         }
     }
 }

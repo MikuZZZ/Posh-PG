@@ -16,6 +16,11 @@ namespace PoshPG
             Query = query;
         }
 
+        public PgQuery(string filename, System.Text.Encoding enc)
+        {
+            Query = System.IO.File.ReadAllText(filename, enc);
+        }
+
         public PgTableFormater Formatter { set; get; } = new PgTableDefaultFormater();
 
         public string[] GetQueryParameters()
