@@ -1,6 +1,6 @@
 # Posh-PG
 
-Access PostgreSQL Database direct from PowerShell.
+Access PostgreSQL Database from PowerShell.
 
 **Warning: This project is in early development stage, and everything could be changed. Do not use it in production environment.**
 
