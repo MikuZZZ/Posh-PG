@@ -12,6 +12,15 @@ Access PostgreSQL Database from PowerShell.
 - Multiple environment by powershell profile
 - Session and Saved Query autocompletion
 
+## TODO
+
+- [ ] Confirmation for Update and Delete Query
+- [ ] Refine autocompletion code
+- [ ] Cross platform test
+- [ ] NuGet package
+- [ ] Customize table formatter
+- [ ] Edit stored procedure
+
 ## Build
 
 ```
