@@ -47,20 +47,80 @@ Invoke-PgQuery `
     -Text "select * from information_schema.schemata" // Sql statement
 ```
 
-## Create a saved query with parameter
+## Save a query in powershell session
+
+### Create a Query with parameter
 
 ```
 New-PgQuery `
-    -Name GetUserInfo `
-    -Query "
-        select user_id, active, email, nickname, username, phone_number, stripe_customer_id
-        from _user.user_info
+    -Name GetSchemas `
+    -Query " `
+        select *
+        from information_schema.tables
         where (
-            (@Username is null or username = @Username) and
-            (@Phone is null or phone_number = @Phone) and
-            (@Nickname is null or nickname = @Nickname) and
-            (@Email is null or email = @Email)
+            @Schema is null or table_schema = @Schema
         )
-        limit (case when @Limit is null then 100 else @Limit::integer end)
     "
+```
+
+### Execute saved query with parameter
+
+```
+Invoke-PgQuery `
+    -Name GetSchemas ` // The name of a saved query
+    -Parameters @{ Schema = "public" } // Parameters as a dictionary
+```
+
+## Persistent you session and saved query in Powershell profile
+
+### Create a powershell script to define sessions and saved query and save as a ps1 script
+
+```
+Import-Module "./PoshPG/bin/Debug/netcoreapp3.1/PoshPG.dll" // Path of the module dll
+
+
+// Create session
+New-PgSession `
+    -Endpoint "localhost" `
+    -Username "postgres" `
+    -Password "" `
+    -Database "postgres" `
+    -Name "dev" `
+    -Quiet
+
+// Set default session so you don't need to specify Session later
+Set-PgDefaultSession -Session dev -Quiet
+
+// Create saved query
+New-PgQuery `
+    -Name GetSchemas `
+    -Query " `
+        select *
+        from information_schema.tables
+        where (
+            @Schema is null or table_schema = @Schema
+        )
+    "
+```
+
+### Start powershell with the profile
+
+```
+pwsh -NoExit -NoProfile <Path of the profile you created>
+```
+
+Then you can Use your pg connection and query in this powershell session
+
+## Setting with Windows Terminal
+
+Add the following code in your Windows Terminal setting
+
+```
+{
+    "guid": "<GENERATE A UUID HERE>",
+    "hidden": false,
+    "name": "PowerShell Posh-PG",
+    "commandline": "pwsh.exe -NoExit -NoProfile <PATH OF YOUR PROFILE>",
+    "startingDirectory": "~"
+}
 ```
